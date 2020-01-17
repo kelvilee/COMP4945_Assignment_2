@@ -244,3 +244,51 @@ end loop;
 close c1;
 end;
 /
+
+create or replace procedure insertScheduleFacts as
+	cursor c1 is select ID, EmployeeID, CustomerServiceID, StartDateTime, ActualDuration, Status from CustomerServiceSchedule;
+	myID RAW(32);
+	myEID RAW(32);
+	myCSID RAW(32);
+	mySDT date;
+	myActDur integer;
+	myStatus number(1,0);
+	myCID RAW(32);
+	myAddress char(80);
+	mySID RAW(32);
+	myAID RAW(32);
+	mySHID RAW(32);
+
+begin
+open c1;
+loop
+	fetch c1 into myID, myEID, myCSID, mySDT, myActDur, myStatus;
+	exit when c1%notfound;
+	
+		select CustomerService.ServiceTypeID, CustomerService.CustomerID
+		into mySID, myCID
+		from CustomerService
+		where ID = myCSID;
+	
+		select Customer.Address
+		into myAddress
+		from Customer
+		where ID = myCID;
+		
+		select AddressDim.ID
+		into myAID
+		from AddressDim
+		where City = myAddress;
+		
+		select ShiftDim.ID
+		into mySHID
+		from ShiftDim
+		where to_char(mySDT, 'D') = DayOfWeek;
+	
+		insert into CustomerServiceScheduleFacts (ID, EmployeeID, CustomerID, ServiceID, AddressID, ShiftID, ActualDuration, Status)
+		values (myID, myEID, myCID, mySID, myAID, mySHID, myActDur, myStatus);
+end loop;
+close c1;
+end;
+/
+show errors;
