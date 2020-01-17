@@ -36,13 +36,14 @@ create table ServiceType (
 	Rate integer
 );
 create table CustomerService(
+	ID RAW(32),
 	CustomerID RAW(32), 
 	ServiceTypeID RAW(32), 
 	ExpectedDuration integer
 ); 
 create table CustomerServiceSchedule(
-	CustomerID RAW(32), 
-	ServiceTypeID RAW(32), 
+	ID RAW(32),
+	CustomerServiceID RAW(32), 
 	EmployeeID RAW(32), 
 	StartDateTime date, 
 	ActualDuration integer, 
@@ -52,7 +53,7 @@ create table CustomerServiceSchedule(
 create table CustomerServiceScheduleFacts (
 	ID RAW(32),
 	EmployeeID RAW(32),
-	ClientID RAW(32),
+	CustomerID RAW(32),
 	ServiceID RAW(32),
 	AddressID RAW(32),
 	ShiftID RAW(32),
@@ -77,9 +78,7 @@ create table ServiceDim (
 );
 create table AddressDim (
 	ID RAW(32),
-	CityArea char(80),
-	City char(80),
-	Region char(80)
+	City char(80)
 ); 
 create table ShiftDim (
 	ID RAW(32),
@@ -94,11 +93,11 @@ insert into ShiftDim values (SYS_GUID(), 5);
 insert into ShiftDim values (SYS_GUID(), 6);
 insert into ShiftDim values (SYS_GUID(), 7);
 
-insert into AddressDim values (SYS_GUID(), 'North', 'Burnaby', 'LM');
-insert into AddressDim values (SYS_GUID(), 'South', 'Burnaby', 'LM');
-insert into AddressDim values (SYS_GUID(), 'Fleetwood', 'Surrey', 'LM');
-insert into AddressDim values (SYS_GUID(), 'Newton', 'Surrey', 'LM');
-insert into AddressDim values (SYS_GUID(), 'South', 'Surrey', 'LM');
+insert into AddressDim values (SYS_GUID(), 'Burnaby');
+insert into AddressDim values (SYS_GUID(), 'Surrey');
+insert into AddressDim values (SYS_GUID(), 'Vancouver');
+insert into AddressDim values (SYS_GUID(), 'Delta');
+insert into AddressDim values (SYS_GUID(), 'Coquitlam');
 
 create or replace trigger update_employee before insert or update on Employee for each row
 begin
@@ -128,6 +127,67 @@ begin
 		insert into ServiceDim (ID, Name, CertificationRqts, Rate) values (:new.ID, :new.Name, :new.CertificationRqts, :new.Rate);
 	elsif updating then
 		update ServiceDim set Name = :new.Name, CertificationRqts = :new.CertificationRqts, Rate = :new.Rate where ID = :new.ID;	
+	end if;
+end;
+/
+show errors;
+
+create or replace trigger update_service_schedule before insert or update on CustomerServiceSchedule for each row
+declare
+	myCID RAW(32);
+	myAddress char(80);
+	mySID RAW(32);
+	myAID RAW(32);
+	mySHID RAW(32);
+
+begin
+	if inserting then
+	
+		select CustomerService.ServiceTypeID, CustomerService.CustomerID
+		into mySID, myCID
+		from CustomerService
+		where ID = :new.CustomerServiceID;
+	
+		select Customer.Address
+		into myAddress
+		from Customer
+		where ID = myCID;
+		
+		select AddressDim.ID
+		into myAID
+		from AddressDim
+		where City = myAddress;
+		
+		select ShiftDim.ID
+		into mySHID
+		from ShiftDim
+		where to_char(:new.StartDateTime, 'D') = DayOfWeek;
+	
+		insert into CustomerServiceScheduleFacts (ID, EmployeeID, CustomerID, ServiceID, AddressID, ShiftID, ActualDuration, Status)
+		values (:new.ID, :new.EmployeeID, myCID, mySID, myAID, mySHID, :new.ActualDuration, :new.Status);
+	elsif updating then
+	
+		select CustomerService.ServiceTypeID, CustomerService.CustomerID
+		into mySID, myCID
+		from CustomerService
+		where ID = :new.CustomerServiceID;
+	
+		select Customer.Address
+		into myAddress
+		from Customer
+		where ID = myCID;
+		
+		select AddressDim.ID
+		into myAID
+		from AddressDim
+		where City = myAddress;
+		
+		select ShiftDim.ID
+		into mySHID
+		from ShiftDim
+		where to_char(:new.StartDateTime, 'D') = DayOfWeek;
+	
+		update CustomerServiceScheduleFacts set EmployeeID = :new.EmployeeID, CustomerID = myCID, ServiceID = mySID, AddressID = myAID, ShiftID = mySHID, ActualDuration = :new.ActualDuration, Status = :new.Status where ID = :new.ID;	
 	end if;
 end;
 /
