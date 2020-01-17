@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Data.Odbc;
 using System.IO;
-
+// Code by Kelvin
 class MyOdbcConnection
 {
     public static void Main()
